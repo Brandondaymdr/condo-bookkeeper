@@ -21,18 +21,19 @@ const ProfitLoss = ({ store, saveData }) => {
       const plReport = generateProfitLoss(
         store.transactions,
         store.journal_entries,
-        new Date(startDate),
-        new Date(endDate)
+        startDate,
+        endDate
       );
       setReport(plReport);
     }
   }, [startDate, endDate, store]);
 
-  const handlePresetRange = (preset) => {
+  const handlePresetRange = (label) => {
     const ranges = getPresetDateRanges();
-    if (ranges[preset]) {
-      setStartDate(ranges[preset].start.toISOString().split('T')[0]);
-      setEndDate(ranges[preset].end.toISOString().split('T')[0]);
+    const found = ranges.find(r => r.label === label);
+    if (found) {
+      setStartDate(found.start);
+      setEndDate(found.end);
     }
   };
 
@@ -55,13 +56,7 @@ const ProfitLoss = ({ store, saveData }) => {
     return <div style={{ padding: '20px' }}>Loading report...</div>;
   }
 
-  const presetButtons = [
-    'This Month',
-    'Last Month',
-    'This Quarter',
-    'YTD',
-    'Last Year',
-  ];
+  const presetButtons = getPresetDateRanges().map(r => r.label);
 
   return (
     <div style={{ padding: '40px', maxWidth: '900px', margin: '0 auto' }}>
@@ -232,7 +227,7 @@ const ProfitLoss = ({ store, saveData }) => {
             Profit &amp; Loss Statement
           </div>
           <div style={{ fontSize: '13px', color: '#666' }}>
-            {formatDateRange(new Date(startDate), new Date(endDate))}
+            {formatDateRange(startDate, endDate)}
           </div>
         </div>
 
