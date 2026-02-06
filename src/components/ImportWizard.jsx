@@ -113,11 +113,11 @@ const ImportWizard = ({ store, saveData }) => {
       // Parse just the first 10 rows for display
       const previewLines2 = lines.slice(0, 11).join('\n');
       if (accountType === 'checking') {
-        const preview = parseBoaCheckingCSV(previewLines2);
-        setPreviewData(preview.slice(0, 10));
+        const result = parseBoaCheckingCSV(previewLines2);
+        setPreviewData(result.transactions.slice(0, 10));
       } else {
-        const preview = parseBoaCreditCardCSV(previewLines2);
-        setPreviewData(preview.slice(0, 10));
+        const result = parseBoaCreditCardCSV(previewLines2);
+        setPreviewData(result.transactions.slice(0, 10));
       }
 
       setStep('account');
@@ -129,11 +129,11 @@ const ImportWizard = ({ store, saveData }) => {
   const parseAndPreviewXLSX = (rows) => {
     try {
       if (accountType === 'checking') {
-        const preview = parseBoaCheckingRows(rows);
-        setPreviewData(preview.slice(0, 10));
+        const result = parseBoaCheckingRows(rows);
+        setPreviewData(result.transactions.slice(0, 10));
       } else {
-        const preview = parseBoaCreditCardRows(rows);
-        setPreviewData(preview.slice(0, 10));
+        const result = parseBoaCreditCardRows(rows);
+        setPreviewData(result.transactions.slice(0, 10));
       }
 
       setStep('account');
@@ -167,18 +167,23 @@ const ImportWizard = ({ store, saveData }) => {
     try {
       // Parse full data
       let transactions = [];
+      let parseResult;
       if (fileData.type === 'csv') {
         if (accountType === 'checking') {
-          transactions = parseBoaCheckingCSV(fileData.content);
+          parseResult = parseBoaCheckingCSV(fileData.content, fileData.name);
         } else {
-          transactions = parseBoaCreditCardCSV(fileData.content);
+          parseResult = parseBoaCreditCardCSV(fileData.content, fileData.name);
         }
       } else {
         if (accountType === 'checking') {
-          transactions = parseBoaCheckingRows(fileData.rows);
+          parseResult = parseBoaCheckingRows(fileData.rows, null, fileData.name);
         } else {
-          transactions = parseBoaCreditCardRows(fileData.rows);
+          parseResult = parseBoaCreditCardRows(fileData.rows, null, fileData.name);
         }
+      }
+      transactions = parseResult.transactions;
+      if (parseResult.errors && parseResult.errors.length > 0) {
+        console.warn('Parse warnings:', parseResult.errors);
       }
 
       // Categorize all transactions
