@@ -250,9 +250,9 @@ const ProfitLoss = ({ store, saveData }) => {
             REVENUE
           </div>
           <div style={{ marginBottom: '12px' }}>
-            {report.revenue.items.map((item, idx) => (
+            {(report.revenue || []).map((item, idx) => (
               <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1fr 140px 80px' }}>
-                <div style={{ paddingLeft: '20px' }}>{item.name}</div>
+                <div style={{ paddingLeft: '20px' }}>{item.category || item.name}</div>
                 <div style={{ textAlign: 'right' }}>{formatMoney(item.amount)}</div>
                 <div style={{ textAlign: 'right', fontSize: '12px', color: '#666' }}>
                   {item.scheduleE || ''}
@@ -267,7 +267,7 @@ const ProfitLoss = ({ store, saveData }) => {
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px 80px', fontWeight: 'bold' }}>
             <div>Total Revenue</div>
-            <div style={{ textAlign: 'right' }}>{formatMoney(report.revenue.total)}</div>
+            <div style={{ textAlign: 'right' }}>{formatMoney(report.totalRevenue)}</div>
             <div></div>
           </div>
         </div>
@@ -286,9 +286,9 @@ const ProfitLoss = ({ store, saveData }) => {
             EXPENSES
           </div>
           <div style={{ marginBottom: '12px' }}>
-            {report.expenses.items.map((item, idx) => (
+            {(report.expenses || []).map((item, idx) => (
               <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1fr 140px 80px' }}>
-                <div style={{ paddingLeft: '20px' }}>{item.name}</div>
+                <div style={{ paddingLeft: '20px' }}>{item.category || item.name}</div>
                 <div style={{ textAlign: 'right' }}>{formatMoney(item.amount)}</div>
                 <div style={{ textAlign: 'right', fontSize: '12px', color: '#666' }}>
                   {item.scheduleE || ''}
@@ -303,7 +303,7 @@ const ProfitLoss = ({ store, saveData }) => {
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px 80px', fontWeight: 'bold' }}>
             <div>Total Expenses</div>
-            <div style={{ textAlign: 'right' }}>{formatMoney(report.expenses.total)}</div>
+            <div style={{ textAlign: 'right' }}>{formatMoney(report.totalExpenses)}</div>
             <div></div>
           </div>
         </div>
