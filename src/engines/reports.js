@@ -84,7 +84,7 @@ export function generateProfitLoss(transactions, journalEntries, startDate, endD
   // Calculate totals
   const totalRevenue = Object.values(revenue).reduce((sum, v) => sum + v, 0);
   const totalExpenses = Object.values(expenses).reduce((sum, v) => sum + v, 0);
-  const netIncome = totalRevenue - totalExpenses;
+  const netIncome = totalRevenue + totalExpenses;
 
   // Build line items (only non-zero categories, in chart-of-accounts order)
   const revenueLines = REVENUE_CATEGORIES
@@ -222,7 +222,7 @@ export function generateBalanceSheet(transactions, journalEntries, openings, asO
     }
   }
 
-  const retainedEarningsFromPL = totalRevenue - totalExpenses;
+  const retainedEarningsFromPL = totalRevenue + totalExpenses;
   balances["Retained Earnings"] = (openings["Retained Earnings"] || 0) + retainedEarningsFromPL;
 
   // Build report sections
