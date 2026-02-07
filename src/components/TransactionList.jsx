@@ -148,24 +148,24 @@ export default function TransactionList({ store, saveData }) {
       <div style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(4, 1fr)',
-        gap: '15px',
+        gap: '16px',
         marginBottom: '30px'
       }}>
         <div style={statBoxStyle}>
-          <div style={{ color: '#666', fontSize: '14px' }}>Total Transactions</div>
-          <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#003366' }}>{stats.count}</div>
+          <div style={statLabelStyle}>Total Transactions</div>
+          <div style={{ ...statValueStyle, color: '#003366' }}>{stats.count}</div>
         </div>
         <div style={statBoxStyle}>
-          <div style={{ color: '#666', fontSize: '14px' }}>Total Revenue</div>
-          <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#2ecc71' }}>+{formatMoney(stats.revenue)}</div>
+          <div style={statLabelStyle}>Total Revenue</div>
+          <div style={{ ...statValueStyle, color: '#2ecc71' }}>+{formatMoney(stats.revenue)}</div>
         </div>
         <div style={statBoxStyle}>
-          <div style={{ color: '#666', fontSize: '14px' }}>Total Expenses</div>
-          <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#e74c3c' }}>-{formatMoney(stats.expenses)}</div>
+          <div style={statLabelStyle}>Total Expenses</div>
+          <div style={{ ...statValueStyle, color: '#e74c3c' }}>-{formatMoney(stats.expenses)}</div>
         </div>
         <div style={statBoxStyle}>
-          <div style={{ color: '#666', fontSize: '14px' }}>Net</div>
-          <div style={{ fontSize: '24px', fontWeight: 'bold', color: stats.net >= 0 ? '#2ecc71' : '#e74c3c' }}>
+          <div style={statLabelStyle}>Net</div>
+          <div style={{ ...statValueStyle, color: stats.net >= 0 ? '#2ecc71' : '#e74c3c' }}>
             {formatMoney(stats.net)}
           </div>
         </div>
@@ -539,11 +539,26 @@ export default function TransactionList({ store, saveData }) {
 
 // Inline styles
 const statBoxStyle = {
-  padding: '15px',
+  padding: '20px 24px',
   backgroundColor: '#ffffff',
   borderRadius: '8px',
-  boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
-  border: '1px solid #e0e0e0'
+  boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+  border: '1px solid #e0e0e0',
+  minWidth: 0,
+};
+
+const statLabelStyle = {
+  color: '#888',
+  fontSize: '13px',
+  marginBottom: '4px',
+  textTransform: 'uppercase',
+  letterSpacing: '0.5px',
+};
+
+const statValueStyle = {
+  fontSize: '26px',
+  fontWeight: 700,
+  whiteSpace: 'nowrap',
 };
 
 const selectStyle = {
