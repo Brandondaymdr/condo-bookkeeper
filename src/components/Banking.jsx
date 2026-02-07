@@ -446,8 +446,8 @@ const Banking = ({ store, saveData }) => {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))",
-            gap: 12,
+            gridTemplateColumns: "repeat(3, 1fr)",
+            gap: 16,
             marginBottom: 24,
             marginTop: 20,
           }}
@@ -799,7 +799,7 @@ const Banking = ({ store, saveData }) => {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+          gridTemplateColumns: "repeat(3, 1fr)",
           gap: 16,
           marginBottom: 24,
         }}
@@ -954,6 +954,8 @@ const s = {
     borderRadius: 8,
     padding: "20px 24px",
     boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+    border: "1px solid #eee",
+    minWidth: 0,
   },
   summaryLabel: {
     fontSize: 13,
@@ -963,9 +965,10 @@ const s = {
     letterSpacing: "0.5px",
   },
   summaryValue: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: 700,
     color: "#1a1a2e",
+    whiteSpace: "nowrap",
   },
   addBtn: {
     backgroundColor: "#0f3460",
