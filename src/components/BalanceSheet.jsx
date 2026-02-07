@@ -9,11 +9,11 @@ const BalanceSheet = ({ store, saveData }) => {
 
   // Generate report whenever date changes
   useEffect(() => {
-    if (store.transactions && store.journal_entries && store.balance_sheet_openings) {
+    if (store.transactions) {
       const bsReport = generateBalanceSheet(
         store.transactions,
-        store.journal_entries,
-        store.balance_sheet_openings,
+        store.journal_entries || [],
+        store.balance_sheet_openings || {},
         new Date(asOfDate)
       );
       setReport(bsReport);
@@ -28,7 +28,7 @@ const BalanceSheet = ({ store, saveData }) => {
     return <div style={{ padding: '20px' }}>Loading report...</div>;
   }
 
-  const isBalanced = Math.abs(report.balanceDifference) < 0.01;
+  const isBalanced = Math.abs(report.difference) < 0.01;
   const formattedDate = new Date(asOfDate).toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'long',
@@ -156,10 +156,10 @@ const BalanceSheet = ({ store, saveData }) => {
               Current Assets
             </div>
             <div>
-              {report.assets.currentAssets.items.map((item, idx) => (
+              {report.currentAssets.map((item, idx) => (
                 <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1fr 150px' }}>
-                  <div style={{ paddingLeft: '20px' }}>{item.name}</div>
-                  <div style={{ textAlign: 'right' }}>{formatMoney(item.amount)}</div>
+                  <div style={{ paddingLeft: '20px' }}>{item.account}</div>
+                  <div style={{ textAlign: 'right' }}>{formatMoney(item.balance)}</div>
                 </div>
               ))}
             </div>
@@ -178,10 +178,10 @@ const BalanceSheet = ({ store, saveData }) => {
               Fixed Assets
             </div>
             <div>
-              {report.assets.fixedAssets.items.map((item, idx) => (
+              {report.fixedAssets.map((item, idx) => (
                 <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1fr 150px' }}>
-                  <div style={{ paddingLeft: '20px' }}>{item.name}</div>
-                  <div style={{ textAlign: 'right' }}>{formatMoney(item.amount)}</div>
+                  <div style={{ paddingLeft: '20px' }}>{item.account}</div>
+                  <div style={{ textAlign: 'right' }}>{formatMoney(item.balance)}</div>
                 </div>
               ))}
             </div>
@@ -198,7 +198,7 @@ const BalanceSheet = ({ store, saveData }) => {
             }}
           >
             <div>Total Assets</div>
-            <div style={{ textAlign: 'right' }}>{formatMoney(report.assets.total)}</div>
+            <div style={{ textAlign: 'right' }}>{formatMoney(report.totalAssets)}</div>
           </div>
         </div>
 
@@ -230,10 +230,10 @@ const BalanceSheet = ({ store, saveData }) => {
               Current Liabilities
             </div>
             <div>
-              {report.liabilities.currentLiabilities.items.map((item, idx) => (
+              {report.currentLiabilities.map((item, idx) => (
                 <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1fr 150px' }}>
-                  <div style={{ paddingLeft: '20px' }}>{item.name}</div>
-                  <div style={{ textAlign: 'right' }}>{formatMoney(item.amount)}</div>
+                  <div style={{ paddingLeft: '20px' }}>{item.account}</div>
+                  <div style={{ textAlign: 'right' }}>{formatMoney(item.balance)}</div>
                 </div>
               ))}
             </div>
@@ -252,10 +252,10 @@ const BalanceSheet = ({ store, saveData }) => {
               Long-Term Liabilities
             </div>
             <div>
-              {report.liabilities.longTermLiabilities.items.map((item, idx) => (
+              {report.longTermLiabilities.map((item, idx) => (
                 <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1fr 150px' }}>
-                  <div style={{ paddingLeft: '20px' }}>{item.name}</div>
-                  <div style={{ textAlign: 'right' }}>{formatMoney(item.amount)}</div>
+                  <div style={{ paddingLeft: '20px' }}>{item.account}</div>
+                  <div style={{ textAlign: 'right' }}>{formatMoney(item.balance)}</div>
                 </div>
               ))}
             </div>
@@ -272,7 +272,7 @@ const BalanceSheet = ({ store, saveData }) => {
             }}
           >
             <div>Total Liabilities</div>
-            <div style={{ textAlign: 'right' }}>{formatMoney(report.liabilities.total)}</div>
+            <div style={{ textAlign: 'right' }}>{formatMoney(report.totalLiabilities)}</div>
           </div>
         </div>
 
@@ -291,10 +291,10 @@ const BalanceSheet = ({ store, saveData }) => {
             EQUITY
           </div>
           <div style={{ marginBottom: '12px' }}>
-            {report.equity.items.map((item, idx) => (
+            {report.equity.map((item, idx) => (
               <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1fr 150px' }}>
-                <div style={{ paddingLeft: '20px' }}>{item.name}</div>
-                <div style={{ textAlign: 'right' }}>{formatMoney(item.amount)}</div>
+                <div style={{ paddingLeft: '20px' }}>{item.account}</div>
+                <div style={{ textAlign: 'right' }}>{formatMoney(item.balance)}</div>
               </div>
             ))}
           </div>
@@ -310,7 +310,7 @@ const BalanceSheet = ({ store, saveData }) => {
             }}
           >
             <div>Total Equity</div>
-            <div style={{ textAlign: 'right' }}>{formatMoney(report.equity.total)}</div>
+            <div style={{ textAlign: 'right' }}>{formatMoney(report.totalEquity)}</div>
           </div>
         </div>
 
@@ -327,7 +327,7 @@ const BalanceSheet = ({ store, saveData }) => {
         >
           <div>Total Liabilities + Equity</div>
           <div style={{ textAlign: 'right' }}>
-            {formatMoney(report.liabilities.total + report.equity.total)}
+            {formatMoney(report.totalLiabilitiesAndEquity)}
           </div>
         </div>
 
@@ -346,12 +346,12 @@ const BalanceSheet = ({ store, saveData }) => {
           }}
         >
           <span style={{ fontSize: '16px' }}>
-            {isBalanced ? '✓' : '✗'}
+            {isBalanced ? '\u2713' : '\u2717'}
           </span>
           <span>
             {isBalanced
               ? 'Balanced'
-              : `Out of balance by ${formatMoney(Math.abs(report.balanceDifference))}`}
+              : `Out of balance by ${formatMoney(Math.abs(report.difference))}`}
           </span>
         </div>
       </div>
