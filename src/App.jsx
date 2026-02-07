@@ -112,16 +112,16 @@ const spinKeyframes = `
 `;
 
 const tabs = [
-  { id: "dashboard", label: "Dashboard", icon: "ð" },
-  { id: "banking", label: "Banking", icon: "ð¦" },
-  { id: "import", label: "Import", icon: "ð¥" },
-  { id: "review", label: "Review", icon: "ðï¸" },
-  { id: "transactions", label: "Transactions", icon: "ð³" },
-  { id: "rules", label: "Rules", icon: "âï¸" },
-  { id: "journalEntries", label: "Journal Entries", icon: "ð" },
-  { id: "pl", label: "P&L", icon: "ð" },
-  { id: "balanceSheet", label: "Balance Sheet", icon: "âï¸" },
-  { id: "settings", label: "Settings", icon: "ð§" },
+  { id: "dashboard", label: "Dashboard", icon: "📊" },
+  { id: "banking", label: "Banking", icon: "🏦" },
+  { id: "import", label: "Import", icon: "📥" },
+  { id: "review", label: "Review", icon: "👁️" },
+  { id: "transactions", label: "Transactions", icon: "💳" },
+  { id: "rules", label: "Rules", icon: "⚙️" },
+  { id: "journalEntries", label: "Journal Entries", icon: "📝" },
+  { id: "pl", label: "P&L", icon: "📈" },
+  { id: "balanceSheet", label: "Balance Sheet", icon: "⚖️" },
+  { id: "settings", label: "Settings", icon: "🔧" },
 ];
 
 // Inline Dashboard component
