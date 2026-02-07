@@ -10,7 +10,9 @@ import JournalEntries from "./components/JournalEntries.jsx";
 import ProfitLoss from "./components/ProfitLoss.jsx";
 import BalanceSheet from "./components/BalanceSheet.jsx";
 import Settings from "./components/Settings.jsx";
+import Banking from "./components/Banking.jsx";
 import { formatMoney } from "./utils/format.js";
+import { migrateAccounts } from "./models/schema.js";
 
 const styles = {
   container: {
@@ -110,15 +112,16 @@ const spinKeyframes = `
 `;
 
 const tabs = [
-  { id: "dashboard", label: "Dashboard", icon: "📊" },
-  { id: "import", label: "Import", icon: "📥" },
-  { id: "review", label: "Review", icon: "👁️" },
-  { id: "transactions", label: "Transactions", icon: "💳" },
-  { id: "rules", label: "Rules", icon: "⚙️" },
-  { id: "journalEntries", label: "Journal Entries", icon: "📝" },
-  { id: "pl", label: "P&L", icon: "📈" },
-  { id: "balanceSheet", label: "Balance Sheet", icon: "⚖️" },
-  { id: "settings", label: "Settings", icon: "🔧" },
+  { id: "dashboard", label: "Dashboard", icon: "ð" },
+  { id: "banking", label: "Banking", icon: "ð¦" },
+  { id: "import", label: "Import", icon: "ð¥" },
+  { id: "review", label: "Review", icon: "ðï¸" },
+  { id: "transactions", label: "Transactions", icon: "ð³" },
+  { id: "rules", label: "Rules", icon: "âï¸" },
+  { id: "journalEntries", label: "Journal Entries", icon: "ð" },
+  { id: "pl", label: "P&L", icon: "ð" },
+  { id: "balanceSheet", label: "Balance Sheet", icon: "âï¸" },
+  { id: "settings", label: "Settings", icon: "ð§" },
 ];
 
 // Inline Dashboard component
@@ -129,7 +132,7 @@ function Dashboard({ store }) {
   const revenue = approved.filter(t => t.type === "revenue").reduce((s, t) => s + t.amount, 0);
   const expenses = approved.filter(t => t.type === "expense").reduce((s, t) => s + t.amount, 0);
   const batches = store.import_batches || [];
-  const lastImport = batches.length > 0 ? batches[batches.length - 1].import_date : "—";
+  const lastImport = batches.length > 0 ? batches[batches.length - 1].import_date : "â";
   const rules = store.rules || [];
   const patterns = store.learned_patterns || [];
 
@@ -190,6 +193,7 @@ function Dashboard({ store }) {
 
 const componentMap = {
   dashboard: Dashboard,
+  banking: Banking,
   import: ImportWizard,
   review: ReviewApproval,
   transactions: TransactionList,
@@ -209,7 +213,12 @@ export default function App() {
   useEffect(() => {
     const initializeStore = async () => {
       try {
-        const loadedStore = await loadStore();
+        let loadedStore = await loadStore();
+        // Migrate: seed accounts array from existing balance_sheet_openings
+        if (!loadedStore.accounts || loadedStore.accounts.length === 0) {
+          loadedStore = migrateAccounts(loadedStore);
+          await saveStore(loadedStore);
+        }
         setStore(loadedStore);
       } catch (error) {
         console.error("Failed to load store:", error);
