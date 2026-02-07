@@ -47,7 +47,8 @@ export function createTransaction(overrides = {}) {
     amount: 0,
     type: "",               // revenue | expense | transfer
     category: "",
-    source_account: "",     // checking | credit_card | manual
+    account_id: "",         // links to Account.id
+    source_account: "",     // checking | credit_card | manual (legacy)
     source_file: "",
     import_batch_id: "",
     import_date: new Date().toISOString().slice(0, 10),
@@ -236,6 +237,38 @@ export function migrateAccounts(store) {
   }
 
   return { ...store, accounts };
+}
+
+/**
+ * Migrate existing transactions to link to account IDs.
+ * Maps source_account ("checking"/"credit_card") to the matching Account.id.
+ */
+export function migrateTransactionAccounts(store) {
+  const accounts = store.accounts || [];
+  const transactions = store.transactions || [];
+  if (accounts.length === 0 || transactions.length === 0) return store;
+
+  // Check if migration already done (first transaction has account_id)
+  if (transactions[0].account_id) return store;
+
+  // Build a map: source_account type → account id
+  const typeToAccountId = {};
+  for (const acct of accounts) {
+    // "checking" or "savings" → first matching account
+    // "credit_card" → first matching account
+    if (!typeToAccountId[acct.type]) {
+      typeToAccountId[acct.type] = acct.id;
+    }
+  }
+
+  const updatedTransactions = transactions.map((tx) => {
+    if (tx.account_id) return tx; // already migrated
+    const sa = tx.source_account || "";
+    const accountId = typeToAccountId[sa] || "";
+    return { ...tx, account_id: accountId };
+  });
+
+  return { ...store, transactions: updatedTransactions };
 }
 
 // ─── Full Data Store ─────────────────────────────────────────────────
