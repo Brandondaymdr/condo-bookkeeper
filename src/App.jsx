@@ -12,7 +12,7 @@ import BalanceSheet from "./components/BalanceSheet.jsx";
 import Settings from "./components/Settings.jsx";
 import Banking from "./components/Banking.jsx";
 import { formatMoney } from "./utils/format.js";
-import { migrateAccounts } from "./models/schema.js";
+import { migrateAccounts, migrateTransactionAccounts } from "./models/schema.js";
 
 const styles = {
   container: {
@@ -217,6 +217,13 @@ export default function App() {
         // Migrate: seed accounts array from existing balance_sheet_openings
         if (!loadedStore.accounts || loadedStore.accounts.length === 0) {
           loadedStore = migrateAccounts(loadedStore);
+          await saveStore(loadedStore);
+        }
+        // Migrate transactions to link to account IDs
+        const beforeMigrate = JSON.stringify(loadedStore.transactions?.[0]?.account_id);
+        loadedStore = migrateTransactionAccounts(loadedStore);
+        const afterMigrate = JSON.stringify(loadedStore.transactions?.[0]?.account_id);
+        if (beforeMigrate !== afterMigrate) {
           await saveStore(loadedStore);
         }
         setStore(loadedStore);
