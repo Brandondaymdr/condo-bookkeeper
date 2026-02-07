@@ -120,7 +120,7 @@ const tabs = [
   { id: "rules", label: "Rules", icon: "⚙️" },
   { id: "journalEntries", label: "Journal Entries", icon: "📝" },
   { id: "pl", label: "P&L", icon: "📈" },
-  { id: "balanceSheet", label: "Balance Sheet", icon: "⚖️" },
+  { id: "balanceSheet", label: "Balance Sheet", icon: "➖️" },
   { id: "settings", label: "Settings", icon: "🔧" },
 ];
 
@@ -132,20 +132,20 @@ function Dashboard({ store }) {
   const revenue = approved.filter(t => t.type === "revenue").reduce((s, t) => s + t.amount, 0);
   const expenses = approved.filter(t => t.type === "expense").reduce((s, t) => s + t.amount, 0);
   const batches = store.import_batches || [];
-  const lastImport = batches.length > 0 ? batches[batches.length - 1].import_date : "â";
+  const lastImport = batches.length > 0 ? batches[batches.length - 1].import_date : "—";
   const rules = store.rules || [];
   const patterns = store.learned_patterns || [];
 
   const cardStyle = {
     background: "#fff", borderRadius: 8, padding: "20px 24px",
-    boxShadow: "0 1px 3px rgba(0,0,0,0.08)", minWidth: 200,
+    boxShadow: "0 1px 3px rgba(0,0,0,0.08)", border: "1px solid #eee", minWidth: 0,
   };
   const labelStyle = { fontSize: 13, color: "#888", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.5px" };
-  const valueStyle = { fontSize: 28, fontWeight: 700, color: "#1a1a2e" };
+  const valueStyle = { fontSize: 26, fontWeight: 700, color: "#1a1a2e", whiteSpace: "nowrap" };
 
   return (
     <div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 16, marginBottom: 32 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 16 }}>
         <div style={cardStyle}>
           <div style={labelStyle}>Total Transactions</div>
           <div style={valueStyle}>{txs.length}</div>
@@ -160,8 +160,10 @@ function Dashboard({ store }) {
         </div>
         <div style={cardStyle}>
           <div style={labelStyle}>Expenses</div>
-          <div style={{ ...valueStyle, color: "#e94560" }}>{formatMoney(expenses)}</div>
+          <div style={{ ...valueStyle, color: "#e94560" }}>({formatMoney(Math.abs(expenses))})</div>
         </div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16, marginBottom: 32 }}>
         <div style={cardStyle}>
           <div style={labelStyle}>Net Income</div>
           <div style={{ ...valueStyle, color: revenue + expenses >= 0 ? "#27ae60" : "#e94560" }}>
@@ -170,7 +172,7 @@ function Dashboard({ store }) {
         </div>
         <div style={cardStyle}>
           <div style={labelStyle}>Last Import</div>
-          <div style={{ ...valueStyle, fontSize: 18 }}>{lastImport}</div>
+          <div style={{ ...valueStyle, fontSize: 20 }}>{lastImport}</div>
         </div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
@@ -217,7 +219,6 @@ export default function App() {
         // Migrate: seed accounts array from existing balance_sheet_openings
         if (!loadedStore.accounts || loadedStore.accounts.length === 0) {
           loadedStore = migrateAccounts(loadedStore);
-          await saveStore(loadedStore);
         }
         // Migrate transactions to link to account IDs
         const beforeMigrate = JSON.stringify(loadedStore.transactions?.[0]?.account_id);
