@@ -87,10 +87,10 @@ export default function TransactionList({ store, saveData }) {
   const stats = useMemo(() => {
     const revenue = store.transactions
       .filter(t => t.type === 'revenue')
-      .reduce((sum, t) => sum + (t.amount || 0), 0);
+      .reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
     const expenses = store.transactions
       .filter(t => t.type === 'expense')
-      .reduce((sum, t) => sum + (t.amount || 0), 0);
+      .reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
     return {
       count: store.transactions.length,
       revenue,
@@ -333,8 +333,8 @@ export default function TransactionList({ store, saveData }) {
                         style={inputStyle}
                       />
                     ) : (
-                      <span style={{ color: transaction.type === 'revenue' ? '#2ecc71' : '#e74c3c' }}>
-                        {transaction.type === 'revenue' ? '' : '-'}{formatMoney(transaction.amount)}
+                      <span style={{ color: transaction.amount >= 0 ? '#2ecc71' : '#e74c3c' }}>
+                        {transaction.amount < 0 ? '-' : ''}{formatMoney(Math.abs(transaction.amount))}
                       </span>
                     )}
                   </td>
