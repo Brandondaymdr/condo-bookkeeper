@@ -86,10 +86,10 @@ export default function TransactionList({ store, saveData }) {
   // Calculate summary stats
   const stats = useMemo(() => {
     const revenue = store.transactions
-      .filter(t => t.type === 'Revenue')
+      .filter(t => t.type === 'revenue')
       .reduce((sum, t) => sum + (t.amount || 0), 0);
     const expenses = store.transactions
-      .filter(t => t.type === 'Expense')
+      .filter(t => t.type === 'expense')
       .reduce((sum, t) => sum + (t.amount || 0), 0);
     return {
       count: store.transactions.length,
@@ -213,9 +213,9 @@ export default function TransactionList({ store, saveData }) {
             style={selectStyle}
           >
             <option>All Types</option>
-            <option value="Revenue">Revenue</option>
-            <option value="Expense">Expense</option>
-            <option value="Transfer">Transfer</option>
+            <option value="revenue">Revenue</option>
+            <option value="expense">Expense</option>
+            <option value="transfer">Transfer</option>
           </select>
 
           <select
@@ -333,8 +333,8 @@ export default function TransactionList({ store, saveData }) {
                         style={inputStyle}
                       />
                     ) : (
-                      <span style={{ color: transaction.type === 'Revenue' ? '#2ecc71' : '#e74c3c' }}>
-                        {transaction.type === 'Revenue' ? '+' : '-'}{formatMoney(transaction.amount)}
+                      <span style={{ color: transaction.type === 'revenue' ? '#2ecc71' : '#e74c3c' }}>
+                        {transaction.type === 'revenue' ? '' : '-'}{formatMoney(transaction.amount)}
                       </span>
                     )}
                   </td>
@@ -345,9 +345,9 @@ export default function TransactionList({ store, saveData }) {
                         onChange={(e) => setEditingData({ ...editingData, type: e.target.value })}
                         style={inputStyle}
                       >
-                        <option value="Revenue">Revenue</option>
-                        <option value="Expense">Expense</option>
-                        <option value="Transfer">Transfer</option>
+                        <option value="revenue">Revenue</option>
+                        <option value="expense">Expense</option>
+                        <option value="transfer">Transfer</option>
                       </select>
                     ) : (
                       transaction.type
