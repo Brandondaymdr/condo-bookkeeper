@@ -161,8 +161,8 @@ function Dashboard({ store }) {
         </div>
         <div style={cardStyle}>
           <div style={labelStyle}>Net Income</div>
-          <div style={{ ...valueStyle, color: revenue - expenses >= 0 ? "#27ae60" : "#e94560" }}>
-            {formatMoney(revenue - expenses)}
+          <div style={{ ...valueStyle, color: revenue + expenses >= 0 ? "#27ae60" : "#e94560" }}>
+            {formatMoney(revenue + expenses)}
           </div>
         </div>
         <div style={cardStyle}>
