@@ -7,7 +7,7 @@
  */
 
 // ─── Unique ID Generator ────────────────────────────────────────────
-let _counters = { tx: 0, rule: 0, je: 0, pattern: 0, batch: 0 };
+let _counters = { tx: 0, rule: 0, je: 0, pattern: 0, batch: 0, acct: 0 };
 
 export function generateId(prefix = "tx") {
   _counters[prefix] = (_counters[prefix] || 0) + 1;
@@ -155,6 +155,89 @@ export function createImportBatch(overrides = {}) {
   };
 }
 
+// ─── Bank Account ───────────────────────────────────────────────────
+/**
+ * A bank account (checking, savings, or credit card).
+ *
+ * @typedef {Object} Account
+ * @property {string}  id               - Unique identifier (acct-xxxxx)
+ * @property {string}  name             - User-friendly name
+ * @property {string}  type             - "checking" | "savings" | "credit_card"
+ * @property {string}  institution      - Bank name (optional)
+ * @property {number}  opening_balance  - Starting balance amount
+ * @property {string}  opening_date     - ISO date string (YYYY-MM-DD)
+ * @property {boolean} active           - Whether account is currently in use
+ * @property {string}  created          - ISO date when added
+ */
+export function createAccount(overrides = {}) {
+  return {
+    id: generateId("acct"),
+    name: "",
+    type: "checking",              // checking | savings | credit_card
+    institution: "",
+    opening_balance: 0,
+    opening_date: new Date().toISOString().slice(0, 10),
+    active: true,
+    created: new Date().toISOString().slice(0, 10),
+    ...overrides,
+  };
+}
+
+/**
+ * Map an account to its balance sheet account name.
+ */
+export function accountToBalanceSheetName(account) {
+  const inst = account.institution ? ` (${account.institution})` : "";
+  switch (account.type) {
+    case "checking":
+      return `Cash - Checking${inst}`;
+    case "savings":
+      return `Cash - Savings${inst}`;
+    case "credit_card":
+      return account.institution
+        ? `Credit Card - ${account.institution}`
+        : "Credit Card Payable";
+    default:
+      return account.name;
+  }
+}
+
+/**
+ * Migrate existing store to include accounts array.
+ * Seeds from hardcoded balance_sheet_openings on first load.
+ */
+export function migrateAccounts(store) {
+  if (store.accounts && store.accounts.length > 0) return store;
+
+  const accounts = [];
+  const openings = store.balance_sheet_openings || {};
+
+  // Seed BOA Checking if it exists
+  if (openings["Cash - Checking (BOA)"] !== undefined) {
+    accounts.push(createAccount({
+      name: "BOA Checking",
+      type: "checking",
+      institution: "BOA",
+      opening_balance: openings["Cash - Checking (BOA)"] || 0,
+      opening_date: "2025-01-01",
+    }));
+  }
+
+  // Seed BOA Credit Card if it exists
+  if (openings["Cash - Credit Card Balance"] !== undefined ||
+      openings["Credit Card Payable"] !== undefined) {
+    accounts.push(createAccount({
+      name: "BOA Credit Card",
+      type: "credit_card",
+      institution: "BOA",
+      opening_balance: openings["Credit Card Payable"] || openings["Cash - Credit Card Balance"] || 0,
+      opening_date: "2025-01-01",
+    }));
+  }
+
+  return { ...store, accounts };
+}
+
 // ─── Full Data Store ─────────────────────────────────────────────────
 /**
  * The complete application state — everything saved/loaded as one JSON blob.
@@ -168,6 +251,7 @@ export function createDefaultStore() {
     learned_patterns: [],           // Learned vendor mappings (Layer 2)
     journal_entries: [],
     import_batches: [],
+    accounts: [],                   // Bank accounts (checking, savings, credit cards)
     balance_sheet_openings: {
       // User sets these once during initial setup
       "Cash - Checking (BOA)": 0,
