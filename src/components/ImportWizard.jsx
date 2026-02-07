@@ -25,7 +25,7 @@ const COLORS = {
 
 const ImportWizard = ({ store, saveData }) => {
   const [step, setStep] = useState('upload'); // upload, account, preview, summary
-  const [accountType, setAccountType] = useState('checking'); // checking or creditCard
+  const [selectedAccountId, setSelectedAccountId] = useState('');
   const [fileData, setFileData] = useState(null);
   const [previewData, setPreviewData] = useState([]);
   const [parsedTransactions, setParsedTransactions] = useState([]);
@@ -34,6 +34,19 @@ const ImportWizard = ({ store, saveData }) => {
   const [dragActive, setDragActive] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [loadingMessage, setLoadingMessage] = useState('');
+
+  const accounts = store.accounts || [];
+
+  // Get the selected account object
+  const selectedAccount = accounts.find((a) => a.id === selectedAccountId);
+
+  // Determine parser type from account type
+  const getParserType = (account) => {
+    if (!account) return 'checking';
+    return account.type === 'credit_card' ? 'creditCard' : 'checking';
+  };
+
+  const parserType = getParserType(selectedAccount);
 
   // File handling
   const handleDrag = (e) => {
@@ -74,8 +87,8 @@ const ImportWizard = ({ store, saveData }) => {
         try {
           const text = e.target.result;
           setFileData({ type: 'csv', content: text, name: file.name });
-          parseAndPreviewCSV(text);
           setLoadingMessage('');
+          setStep('account');
         } catch (err) {
           setErrorMessage(`Error reading file: ${err.message}`);
           setLoadingMessage('');
@@ -91,8 +104,8 @@ const ImportWizard = ({ store, saveData }) => {
           const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
           const rows = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
           setFileData({ type: 'xlsx', rows: rows, name: file.name });
-          parseAndPreviewXLSX(rows);
           setLoadingMessage('');
+          setStep('account');
         } catch (err) {
           setErrorMessage(`Error reading Excel file: ${err.message}`);
           setLoadingMessage('');
@@ -101,62 +114,49 @@ const ImportWizard = ({ store, saveData }) => {
       reader.readAsArrayBuffer(file);
     } else {
       setErrorMessage('Please select a CSV or XLSX file');
+      setLoadingMessage('');
     }
   };
 
-  const parseAndPreviewCSV = (csvText) => {
+  const parsePreview = (pType) => {
+    if (!fileData) return [];
     try {
-      // Show first 10 rows for preview by splitting and taking first 11 lines (header + 10 rows)
-      const lines = csvText.split('\n');
-      const previewLines = lines.slice(0, 11).join('\n');
-
-      // Parse just the first 10 rows for display
-      const previewLines2 = lines.slice(0, 11).join('\n');
-      if (accountType === 'checking') {
-        const result = parseBoaCheckingCSV(previewLines2);
-        setPreviewData(result.transactions.slice(0, 10));
-      } else {
-        const result = parseBoaCreditCardCSV(previewLines2);
-        setPreviewData(result.transactions.slice(0, 10));
-      }
-
-      setStep('account');
-    } catch (err) {
-      setErrorMessage(`Error parsing CSV: ${err.message}`);
-    }
-  };
-
-  const parseAndPreviewXLSX = (rows) => {
-    try {
-      if (accountType === 'checking') {
-        const result = parseBoaCheckingRows(rows);
-        setPreviewData(result.transactions.slice(0, 10));
-      } else {
-        const result = parseBoaCreditCardRows(rows);
-        setPreviewData(result.transactions.slice(0, 10));
-      }
-
-      setStep('account');
-    } catch (err) {
-      setErrorMessage(`Error parsing Excel: ${err.message}`);
-    }
-  };
-
-  const handleAccountTypeChange = (type) => {
-    setAccountType(type);
-    setErrorMessage('');
-
-    // Re-parse preview with new account type
-    if (fileData) {
       if (fileData.type === 'csv') {
-        parseAndPreviewCSV(fileData.content);
+        const lines = fileData.content.split('\n');
+        const previewLines = lines.slice(0, 11).join('\n');
+        if (pType === 'checking') {
+          return parseBoaCheckingCSV(previewLines).transactions.slice(0, 10);
+        } else {
+          return parseBoaCreditCardCSV(previewLines).transactions.slice(0, 10);
+        }
       } else {
-        parseAndPreviewXLSX(fileData.rows);
+        if (pType === 'checking') {
+          return parseBoaCheckingRows(fileData.rows).transactions.slice(0, 10);
+        } else {
+          return parseBoaCreditCardRows(fileData.rows).transactions.slice(0, 10);
+        }
       }
+    } catch (err) {
+      console.warn('Preview parse error:', err);
+      return [];
     }
+  };
+
+  const handleAccountSelect = (accountId) => {
+    setSelectedAccountId(accountId);
+    setErrorMessage('');
+    const acct = accounts.find((a) => a.id === accountId);
+    const pType = getParserType(acct);
+    setPreviewData(parsePreview(pType));
   };
 
   const proceedToPreview = () => {
+    if (!selectedAccountId) {
+      setErrorMessage('Please select an account.');
+      return;
+    }
+    // Re-parse preview with selected account
+    setPreviewData(parsePreview(parserType));
     setStep('preview');
   };
 
@@ -165,23 +165,29 @@ const ImportWizard = ({ store, saveData }) => {
     setLoadingMessage('Parsing and categorizing transactions...');
 
     try {
-      // Parse full data
       let transactions = [];
       let parseResult;
       if (fileData.type === 'csv') {
-        if (accountType === 'checking') {
+        if (parserType === 'checking') {
           parseResult = parseBoaCheckingCSV(fileData.content, fileData.name);
         } else {
           parseResult = parseBoaCreditCardCSV(fileData.content, fileData.name);
         }
       } else {
-        if (accountType === 'checking') {
+        if (parserType === 'checking') {
           parseResult = parseBoaCheckingRows(fileData.rows, null, fileData.name);
         } else {
           parseResult = parseBoaCreditCardRows(fileData.rows, null, fileData.name);
         }
       }
       transactions = parseResult.transactions;
+
+      // Tag each transaction with the selected account_id
+      transactions = transactions.map((tx) => ({
+        ...tx,
+        account_id: selectedAccountId,
+      }));
+
       if (parseResult.errors && parseResult.errors.length > 0) {
         console.warn('Parse warnings:', parseResult.errors);
       }
@@ -228,30 +234,29 @@ const ImportWizard = ({ store, saveData }) => {
     setLoadingMessage('Saving transactions...');
 
     try {
-      // Create import batch
       const batch = createImportBatch({
-        accountType: accountType === 'checking' ? 'BOA Checking' : 'BOA Credit Card',
-        fileName: fileData.name,
-        count: parsedTransactions.length,
-        dateRange: importSummary.dateRange,
+        filename: fileData.name,
+        source_account: selectedAccount ? selectedAccount.type : '',
+        account_id: selectedAccountId,
+        transaction_count: parsedTransactions.length,
+        import_date: new Date().toISOString().slice(0, 10),
+        date_range_start: importSummary?.dateRange?.from
+          ? importSummary.dateRange.from.toISOString().slice(0, 10) : '',
+        date_range_end: importSummary?.dateRange?.to
+          ? importSummary.dateRange.to.toISOString().slice(0, 10) : '',
+        duplicates_skipped: duplicateCount,
       });
 
-      // Update store
-      const updatedStore = {
-        ...store,
+      await saveData({
         transactions: [...(store.transactions || []), ...parsedTransactions],
         import_batches: [...(store.import_batches || []), batch],
-      };
-
-      // Save to persistent storage
-      await saveData(updatedStore);
+      });
 
       setLoadingMessage('');
       alert(
-        `Successfully imported ${parsedTransactions.length} transactions!`
+        `Successfully imported ${parsedTransactions.length} transactions into ${selectedAccount?.name || 'account'}!`
       );
 
-      // Reset wizard
       resetWizard();
     } catch (err) {
       setErrorMessage(`Error saving data: ${err.message}`);
@@ -261,7 +266,7 @@ const ImportWizard = ({ store, saveData }) => {
 
   const resetWizard = () => {
     setStep('upload');
-    setAccountType('checking');
+    setSelectedAccountId('');
     setFileData(null);
     setPreviewData([]);
     setParsedTransactions([]);
@@ -309,129 +314,59 @@ const ImportWizard = ({ store, saveData }) => {
     fontWeight: '500',
   });
 
+  const errorBox = errorMessage ? (
+    <div style={{
+      padding: '12px', marginBottom: '16px', backgroundColor: '#ffe6e6',
+      border: `1px solid ${COLORS.warningOrange}`, borderRadius: '4px', color: '#c33', fontSize: '14px',
+    }}>
+      {errorMessage}
+    </div>
+  ) : null;
+
   // STEP 1: File Upload
   if (step === 'upload') {
     return (
       <div style={containerStyle}>
         <h1 style={headerStyle}>Import Transactions</h1>
-
         <div style={stepIndicatorStyle}>
           <div style={stepStyle(true, false)}>1. Upload File</div>
           <div style={stepStyle(false, false)}>2. Select Account</div>
           <div style={stepStyle(false, false)}>3. Preview</div>
           <div style={stepStyle(false, false)}>4. Confirm</div>
         </div>
-
-        {errorMessage && (
-          <div
-            style={{
-              padding: '12px',
-              marginBottom: '16px',
-              backgroundColor: '#ffe6e6',
-              border: `1px solid ${COLORS.warningOrange}`,
-              borderRadius: '4px',
-              color: '#c33',
-              fontSize: '14px',
-            }}
-          >
-            {errorMessage}
-          </div>
-        )}
-
+        {errorBox}
         <div
-          onDragEnter={handleDrag}
-          onDragLeave={handleDrag}
-          onDragOver={handleDrag}
-          onDrop={handleDrop}
+          onDragEnter={handleDrag} onDragLeave={handleDrag}
+          onDragOver={handleDrag} onDrop={handleDrop}
           style={{
             border: `2px dashed ${dragActive ? COLORS.accentBlue : COLORS.borderGray}`,
-            borderRadius: '8px',
-            padding: '48px 24px',
-            textAlign: 'center',
+            borderRadius: '8px', padding: '48px 24px', textAlign: 'center',
             backgroundColor: dragActive ? '#f0f6ff' : COLORS.lightGray,
-            cursor: 'pointer',
-            transition: 'all 0.2s ease',
-            marginBottom: '24px',
+            cursor: 'pointer', transition: 'all 0.2s ease', marginBottom: '24px',
           }}
         >
-          <div
-            style={{
-              fontSize: '32px',
-              marginBottom: '12px',
-            }}
-          >
-            📁
-          </div>
-          <p
-            style={{
-              color: COLORS.textDark,
-              fontSize: '16px',
-              fontWeight: '500',
-              margin: '0 0 8px 0',
-            }}
-          >
-            {dragActive
-              ? 'Drop your file here'
-              : 'Drag and drop your CSV or Excel file'}
+          <div style={{ fontSize: '32px', marginBottom: '12px' }}>📁</div>
+          <p style={{ color: COLORS.textDark, fontSize: '16px', fontWeight: '500', margin: '0 0 8px 0' }}>
+            {dragActive ? 'Drop your file here' : 'Drag and drop your CSV or Excel file'}
           </p>
-          <p
-            style={{
-              color: COLORS.textLight,
-              fontSize: '14px',
-              margin: '0 0 16px 0',
-            }}
-          >
+          <p style={{ color: COLORS.textLight, fontSize: '14px', margin: '0 0 16px 0' }}>
             Supported formats: .csv, .xlsx
           </p>
-
-          <label
-            style={{
-              display: 'inline-block',
-              padding: '10px 24px',
-              backgroundColor: COLORS.accentBlue,
-              color: '#fff',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '14px',
-              fontWeight: '500',
-              border: 'none',
-              transition: 'background 0.2s ease',
-            }}
-            onMouseEnter={(e) =>
-              (e.currentTarget.style.backgroundColor = '#0d2a4d')
-            }
-            onMouseLeave={(e) =>
-              (e.currentTarget.style.backgroundColor = COLORS.accentBlue)
-            }
-          >
+          <label style={{
+            display: 'inline-block', padding: '10px 24px', backgroundColor: COLORS.accentBlue,
+            color: '#fff', borderRadius: '4px', cursor: 'pointer', fontSize: '14px', fontWeight: '500',
+          }}>
             Choose File
-            <input
-              type="file"
-              accept=".csv,.xlsx"
-              onChange={handleFileSelect}
-              style={{ display: 'none' }}
-            />
+            <input type="file" accept=".csv,.xlsx" onChange={handleFileSelect} style={{ display: 'none' }} />
           </label>
         </div>
-
-        {loadingMessage && (
-          <p style={{ color: COLORS.textLight, fontSize: '14px' }}>
-            {loadingMessage}
-          </p>
-        )}
-
+        {loadingMessage && <p style={{ color: COLORS.textLight, fontSize: '14px' }}>{loadingMessage}</p>}
         {fileData && (
-          <div
-            style={{
-              padding: '12px',
-              backgroundColor: '#e6ffe6',
-              border: `1px solid ${COLORS.successGreen}`,
-              borderRadius: '4px',
-              color: COLORS.successGreen,
-              fontSize: '14px',
-              marginTop: '16px',
-            }}
-          >
+          <div style={{
+            padding: '12px', backgroundColor: '#e6ffe6',
+            border: `1px solid ${COLORS.successGreen}`, borderRadius: '4px',
+            color: COLORS.successGreen, fontSize: '14px', marginTop: '16px',
+          }}>
             ✓ File loaded: {fileData.name}
           </div>
         )}
@@ -439,231 +374,127 @@ const ImportWizard = ({ store, saveData }) => {
     );
   }
 
-  // STEP 2: Account Selection
+  // STEP 2: Account Selection (dynamic from store.accounts)
   if (step === 'account') {
     return (
       <div style={containerStyle}>
-        <h1 style={headerStyle}>Select Account Type</h1>
-
+        <h1 style={headerStyle}>Select Account</h1>
         <div style={stepIndicatorStyle}>
           <div style={stepStyle(false, true)}>1. Upload File</div>
           <div style={stepStyle(true, false)}>2. Select Account</div>
           <div style={stepStyle(false, false)}>3. Preview</div>
           <div style={stepStyle(false, false)}>4. Confirm</div>
         </div>
-
+        {errorBox}
         <p style={{ color: COLORS.textDark, marginBottom: '20px' }}>
-          Which Bank of America account is this file for?
+          Which account is this statement from?
         </p>
 
-        <div style={{ marginBottom: '24px' }}>
-          <label
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              padding: '16px',
-              border: `2px solid ${
-                accountType === 'checking'
-                  ? COLORS.accentBlue
-                  : COLORS.borderGray
-              }`,
-              borderRadius: '4px',
-              cursor: 'pointer',
-              marginBottom: '12px',
-              backgroundColor:
-                accountType === 'checking' ? '#f0f6ff' : 'transparent',
-            }}
-          >
-            <input
-              type="radio"
-              name="accountType"
-              value="checking"
-              checked={accountType === 'checking'}
-              onChange={() => handleAccountTypeChange('checking')}
-              style={{ marginRight: '12px', cursor: 'pointer' }}
-            />
-            <div>
-              <div style={{ fontWeight: '500', color: COLORS.textDark }}>
-                BOA Checking Account
-              </div>
-              <div
-                style={{ fontSize: '12px', color: COLORS.textLight, marginTop: '4px' }}
-              >
-                Standard checking account transactions
-              </div>
-            </div>
-          </label>
+        {accounts.length === 0 ? (
+          <div style={{
+            padding: '24px', backgroundColor: '#fff5e6', borderRadius: '8px',
+            border: `1px solid ${COLORS.warningOrange}`, marginBottom: '24px',
+          }}>
+            <p style={{ margin: 0, color: COLORS.textDark, fontWeight: '500' }}>
+              No accounts found. Please add an account in the Banking tab first.
+            </p>
+          </div>
+        ) : (
+          <div style={{ marginBottom: '24px' }}>
+            {accounts.map((acct) => {
+              const isSelected = selectedAccountId === acct.id;
+              const typeLabel = acct.type === 'credit_card' ? 'Credit Card'
+                : acct.type === 'savings' ? 'Savings' : 'Checking';
+              return (
+                <label
+                  key={acct.id}
+                  style={{
+                    display: 'flex', alignItems: 'center', padding: '16px',
+                    border: `2px solid ${isSelected ? COLORS.accentBlue : COLORS.borderGray}`,
+                    borderRadius: '4px', cursor: 'pointer', marginBottom: '12px',
+                    backgroundColor: isSelected ? '#f0f6ff' : 'transparent',
+                  }}
+                  onClick={() => handleAccountSelect(acct.id)}
+                >
+                  <input
+                    type="radio" name="accountSelect" value={acct.id}
+                    checked={isSelected} readOnly
+                    style={{ marginRight: '12px', cursor: 'pointer' }}
+                  />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: '500', color: COLORS.textDark }}>
+                      {acct.name}
+                    </div>
+                    <div style={{ fontSize: '12px', color: COLORS.textLight, marginTop: '4px' }}>
+                      {typeLabel}{acct.institution ? ` — ${acct.institution}` : ''}
+                    </div>
+                  </div>
+                  <span style={{
+                    padding: '3px 10px', borderRadius: 12, fontSize: 11, fontWeight: 600,
+                    textTransform: 'uppercase',
+                    backgroundColor: acct.type === 'credit_card' ? '#fce4ec' : acct.type === 'savings' ? '#e3f2fd' : '#e8f5e9',
+                    color: acct.type === 'credit_card' ? '#c62828' : acct.type === 'savings' ? '#1565c0' : '#2e7d32',
+                  }}>
+                    {typeLabel}
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        )}
 
-          <label
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              padding: '16px',
-              border: `2px solid ${
-                accountType === 'creditCard'
-                  ? COLORS.accentBlue
-                  : COLORS.borderGray
-              }`,
-              borderRadius: '4px',
-              cursor: 'pointer',
-              backgroundColor:
-                accountType === 'creditCard' ? '#f0f6ff' : 'transparent',
-            }}
-          >
-            <input
-              type="radio"
-              name="accountType"
-              value="creditCard"
-              checked={accountType === 'creditCard'}
-              onChange={() => handleAccountTypeChange('creditCard')}
-              style={{ marginRight: '12px', cursor: 'pointer' }}
-            />
-            <div>
-              <div style={{ fontWeight: '500', color: COLORS.textDark }}>
-                BOA Credit Card
-              </div>
-              <div
-                style={{ fontSize: '12px', color: COLORS.textLight, marginTop: '4px' }}
-              >
-                Credit card statement transactions
-              </div>
-            </div>
-          </label>
-        </div>
-
-        <div
-          style={{
-            marginTop: '24px',
-            padding: '16px',
-            backgroundColor: COLORS.lightGray,
+        {/* Preview */}
+        {previewData.length > 0 && (
+          <div style={{
+            marginTop: '24px', padding: '16px', backgroundColor: COLORS.lightGray,
             borderRadius: '4px',
-          }}
-        >
-          <p style={{ margin: '0 0 12px 0', fontWeight: '500', color: COLORS.textDark }}>
-            Preview (first 10 rows):
-          </p>
-          {previewData.length > 0 ? (
-            <div
-              style={{
-                overflowX: 'auto',
-                fontSize: '12px',
-              }}
-            >
-              <table
-                style={{
-                  width: '100%',
-                  borderCollapse: 'collapse',
-                  backgroundColor: '#fff',
-                }}
-              >
+          }}>
+            <p style={{ margin: '0 0 12px 0', fontWeight: '500', color: COLORS.textDark }}>
+              Preview (first 10 rows):
+            </p>
+            <div style={{ overflowX: 'auto', fontSize: '12px' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', backgroundColor: '#fff' }}>
                 <thead>
                   <tr style={{ borderBottom: `1px solid ${COLORS.borderGray}` }}>
                     {Object.keys(previewData[0]).map((key) => (
-                      <th
-                        key={key}
-                        style={{
-                          padding: '8px',
-                          textAlign: 'left',
-                          fontWeight: '600',
-                          color: COLORS.navy,
-                          borderRight: `1px solid ${COLORS.borderGray}`,
-                        }}
-                      >
-                        {key}
-                      </th>
+                      <th key={key} style={{
+                        padding: '8px', textAlign: 'left', fontWeight: '600', color: COLORS.navy,
+                        borderRight: `1px solid ${COLORS.borderGray}`,
+                      }}>{key}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {previewData.map((row, idx) => (
-                    <tr
-                      key={idx}
-                      style={{
-                        borderBottom: `1px solid ${COLORS.borderGray}`,
-                        backgroundColor: idx % 2 === 0 ? '#fff' : COLORS.lightGray,
-                      }}
-                    >
+                    <tr key={idx} style={{
+                      borderBottom: `1px solid ${COLORS.borderGray}`,
+                      backgroundColor: idx % 2 === 0 ? '#fff' : COLORS.lightGray,
+                    }}>
                       {Object.values(row).map((val, colIdx) => (
-                        <td
-                          key={colIdx}
-                          style={{
-                            padding: '8px',
-                            borderRight: `1px solid ${COLORS.borderGray}`,
-                            maxWidth: '200px',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          {String(val).substring(0, 50)}
-                        </td>
+                        <td key={colIdx} style={{
+                          padding: '8px', borderRight: `1px solid ${COLORS.borderGray}`,
+                          maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        }}>{String(val).substring(0, 50)}</td>
                       ))}
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-          ) : (
-            <p style={{ color: COLORS.textLight, margin: '0' }}>
-              No preview data available
-            </p>
-          )}
-        </div>
+          </div>
+        )}
 
-        <div
-          style={{
-            display: 'flex',
-            gap: '12px',
-            marginTop: '24px',
-            justifyContent: 'flex-end',
-          }}
-        >
-          <button
-            onClick={() => {
-              resetWizard();
-            }}
-            style={{
-              padding: '10px 24px',
-              backgroundColor: COLORS.lightGray,
-              border: `1px solid ${COLORS.borderGray}`,
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '14px',
-              fontWeight: '500',
-              color: COLORS.textDark,
-              transition: 'background 0.2s ease',
-            }}
-            onMouseEnter={(e) =>
-              (e.currentTarget.style.backgroundColor = '#e0e0e0')
-            }
-            onMouseLeave={(e) =>
-              (e.currentTarget.style.backgroundColor = COLORS.lightGray)
-            }
-          >
-            Back
-          </button>
-          <button
-            onClick={proceedToPreview}
-            style={{
-              padding: '10px 24px',
-              backgroundColor: COLORS.accentBlue,
-              color: '#fff',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '14px',
-              fontWeight: '500',
-              transition: 'background 0.2s ease',
-            }}
-            onMouseEnter={(e) =>
-              (e.currentTarget.style.backgroundColor = '#0d2a4d')
-            }
-            onMouseLeave={(e) =>
-              (e.currentTarget.style.backgroundColor = COLORS.accentBlue)
-            }
-          >
-            Next: Preview Data
-          </button>
+        <div style={{ display: 'flex', gap: '12px', marginTop: '24px', justifyContent: 'flex-end' }}>
+          <button onClick={resetWizard} style={{
+            padding: '10px 24px', backgroundColor: COLORS.lightGray,
+            border: `1px solid ${COLORS.borderGray}`, borderRadius: '4px',
+            cursor: 'pointer', fontSize: '14px', fontWeight: '500', color: COLORS.textDark,
+          }}>Back</button>
+          <button onClick={proceedToPreview} disabled={!selectedAccountId} style={{
+            padding: '10px 24px', backgroundColor: selectedAccountId ? COLORS.accentBlue : '#ccc',
+            color: '#fff', border: 'none', borderRadius: '4px',
+            cursor: selectedAccountId ? 'pointer' : 'not-allowed', fontSize: '14px', fontWeight: '500',
+          }}>Next: Preview Data</button>
         </div>
       </div>
     );
@@ -674,158 +505,65 @@ const ImportWizard = ({ store, saveData }) => {
     return (
       <div style={containerStyle}>
         <h1 style={headerStyle}>Preview Data</h1>
-
         <div style={stepIndicatorStyle}>
           <div style={stepStyle(false, true)}>1. Upload File</div>
           <div style={stepStyle(false, true)}>2. Select Account</div>
           <div style={stepStyle(true, false)}>3. Preview</div>
           <div style={stepStyle(false, false)}>4. Confirm</div>
         </div>
-
         <p style={{ color: COLORS.textDark, marginBottom: '16px' }}>
-          Account: <strong>{accountType === 'checking' ? 'BOA Checking' : 'BOA Credit Card'}</strong>
+          Account: <strong>{selectedAccount?.name || '—'}</strong>
         </p>
-
-        <div
-          style={{
-            padding: '16px',
-            backgroundColor: COLORS.lightGray,
-            borderRadius: '4px',
-            marginBottom: '24px',
-            overflowX: 'auto',
-            fontSize: '12px',
-          }}
-        >
-          <table
-            style={{
-              width: '100%',
-              borderCollapse: 'collapse',
-              backgroundColor: '#fff',
-            }}
-          >
+        <div style={{
+          padding: '16px', backgroundColor: COLORS.lightGray, borderRadius: '4px',
+          marginBottom: '24px', overflowX: 'auto', fontSize: '12px',
+        }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', backgroundColor: '#fff' }}>
             <thead>
               <tr style={{ borderBottom: `2px solid ${COLORS.navy}` }}>
-                {previewData.length > 0 &&
-                  Object.keys(previewData[0]).map((key) => (
-                    <th
-                      key={key}
-                      style={{
-                        padding: '12px',
-                        textAlign: 'left',
-                        fontWeight: '600',
-                        color: '#fff',
-                        backgroundColor: COLORS.navy,
-                        borderRight: `1px solid ${COLORS.borderGray}`,
-                      }}
-                    >
-                      {key}
-                    </th>
-                  ))}
+                {previewData.length > 0 && Object.keys(previewData[0]).map((key) => (
+                  <th key={key} style={{
+                    padding: '12px', textAlign: 'left', fontWeight: '600',
+                    color: '#fff', backgroundColor: COLORS.navy,
+                    borderRight: `1px solid ${COLORS.borderGray}`,
+                  }}>{key}</th>
+                ))}
               </tr>
             </thead>
             <tbody>
               {previewData.map((row, idx) => (
-                <tr
-                  key={idx}
-                  style={{
-                    borderBottom: `1px solid ${COLORS.borderGray}`,
-                    backgroundColor: idx % 2 === 0 ? '#fff' : COLORS.lightGray,
-                  }}
-                >
+                <tr key={idx} style={{
+                  borderBottom: `1px solid ${COLORS.borderGray}`,
+                  backgroundColor: idx % 2 === 0 ? '#fff' : COLORS.lightGray,
+                }}>
                   {Object.values(row).map((val, colIdx) => (
-                    <td
-                      key={colIdx}
-                      style={{
-                        padding: '12px',
-                        borderRight: `1px solid ${COLORS.borderGray}`,
-                        maxWidth: '250px',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {String(val).substring(0, 60)}
-                    </td>
+                    <td key={colIdx} style={{
+                      padding: '12px', borderRight: `1px solid ${COLORS.borderGray}`,
+                      maxWidth: '250px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}>{String(val).substring(0, 60)}</td>
                   ))}
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-
-        <p
-          style={{
-            color: COLORS.textLight,
-            fontSize: '13px',
-            marginTop: '12px',
-          }}
-        >
+        <p style={{ color: COLORS.textLight, fontSize: '13px', marginTop: '12px' }}>
           Showing first 10 rows of data
         </p>
-
-        <div
-          style={{
-            display: 'flex',
-            gap: '12px',
-            marginTop: '24px',
-            justifyContent: 'flex-end',
-          }}
-        >
-          <button
-            onClick={() => setStep('account')}
-            style={{
-              padding: '10px 24px',
-              backgroundColor: COLORS.lightGray,
-              border: `1px solid ${COLORS.borderGray}`,
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '14px',
-              fontWeight: '500',
-              color: COLORS.textDark,
-              transition: 'background 0.2s ease',
-            }}
-            onMouseEnter={(e) =>
-              (e.currentTarget.style.backgroundColor = '#e0e0e0')
-            }
-            onMouseLeave={(e) =>
-              (e.currentTarget.style.backgroundColor = COLORS.lightGray)
-            }
-          >
-            Back
-          </button>
-          <button
-            onClick={proceedToImport}
-            style={{
-              padding: '10px 24px',
-              backgroundColor: COLORS.accentBlue,
-              color: '#fff',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '14px',
-              fontWeight: '500',
-              transition: 'background 0.2s ease',
-            }}
-            onMouseEnter={(e) =>
-              (e.currentTarget.style.backgroundColor = '#0d2a4d')
-            }
-            onMouseLeave={(e) =>
-              (e.currentTarget.style.backgroundColor = COLORS.accentBlue)
-            }
-          >
-            {loadingMessage ? 'Processing...' : 'Next: Import'}
-          </button>
+        <div style={{ display: 'flex', gap: '12px', marginTop: '24px', justifyContent: 'flex-end' }}>
+          <button onClick={() => setStep('account')} style={{
+            padding: '10px 24px', backgroundColor: COLORS.lightGray,
+            border: `1px solid ${COLORS.borderGray}`, borderRadius: '4px',
+            cursor: 'pointer', fontSize: '14px', fontWeight: '500', color: COLORS.textDark,
+          }}>Back</button>
+          <button onClick={proceedToImport} style={{
+            padding: '10px 24px', backgroundColor: COLORS.accentBlue,
+            color: '#fff', border: 'none', borderRadius: '4px',
+            cursor: 'pointer', fontSize: '14px', fontWeight: '500',
+          }}>{loadingMessage ? 'Processing...' : 'Next: Import'}</button>
         </div>
-
         {loadingMessage && (
-          <p
-            style={{
-              color: COLORS.accentBlue,
-              fontSize: '14px',
-              marginTop: '16px',
-              textAlign: 'center',
-            }}
-          >
+          <p style={{ color: COLORS.accentBlue, fontSize: '14px', marginTop: '16px', textAlign: 'center' }}>
             {loadingMessage}
           </p>
         )}
@@ -838,254 +576,81 @@ const ImportWizard = ({ store, saveData }) => {
     return (
       <div style={containerStyle}>
         <h1 style={headerStyle}>Import Summary</h1>
-
         <div style={stepIndicatorStyle}>
           <div style={stepStyle(false, true)}>1. Upload File</div>
           <div style={stepStyle(false, true)}>2. Select Account</div>
           <div style={stepStyle(false, true)}>3. Preview</div>
           <div style={stepStyle(true, false)}>4. Confirm</div>
         </div>
-
-        {errorMessage && (
-          <div
-            style={{
-              padding: '12px',
-              marginBottom: '16px',
-              backgroundColor: '#ffe6e6',
-              border: `1px solid ${COLORS.warningOrange}`,
-              borderRadius: '4px',
-              color: '#c33',
-              fontSize: '14px',
-            }}
-          >
-            {errorMessage}
-          </div>
-        )}
-
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-            gap: '16px',
-            marginBottom: '24px',
-          }}
-        >
-          <div
-            style={{
-              padding: '16px',
-              backgroundColor: '#e6f3ff',
-              borderRadius: '4px',
-              borderLeft: `4px solid ${COLORS.accentBlue}`,
-            }}
-          >
-            <div style={{ fontSize: '12px', color: COLORS.textLight }}>
-              Total Parsed
-            </div>
-            <div
-              style={{
-                fontSize: '28px',
-                fontWeight: '700',
-                color: COLORS.accentBlue,
-                marginTop: '4px',
-              }}
-            >
+        {errorBox}
+        <div style={{
+          display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+          gap: '16px', marginBottom: '24px',
+        }}>
+          <div style={{ padding: '16px', backgroundColor: '#e6f3ff', borderRadius: '4px', borderLeft: `4px solid ${COLORS.accentBlue}` }}>
+            <div style={{ fontSize: '12px', color: COLORS.textLight }}>Total Parsed</div>
+            <div style={{ fontSize: '28px', fontWeight: '700', color: COLORS.accentBlue, marginTop: '4px' }}>
               {importSummary?.totalParsed || 0}
             </div>
           </div>
-
-          <div
-            style={{
-              padding: '16px',
-              backgroundColor: '#e6ffe6',
-              borderRadius: '4px',
-              borderLeft: `4px solid ${COLORS.successGreen}`,
-            }}
-          >
-            <div style={{ fontSize: '12px', color: COLORS.textLight }}>
-              Auto-Categorized
-            </div>
-            <div
-              style={{
-                fontSize: '28px',
-                fontWeight: '700',
-                color: COLORS.successGreen,
-                marginTop: '4px',
-              }}
-            >
+          <div style={{ padding: '16px', backgroundColor: '#e6ffe6', borderRadius: '4px', borderLeft: `4px solid ${COLORS.successGreen}` }}>
+            <div style={{ fontSize: '12px', color: COLORS.textLight }}>Auto-Categorized</div>
+            <div style={{ fontSize: '28px', fontWeight: '700', color: COLORS.successGreen, marginTop: '4px' }}>
               {importSummary?.categorized || 0}
             </div>
           </div>
-
-          <div
-            style={{
-              padding: '16px',
-              backgroundColor: '#fff5e6',
-              borderRadius: '4px',
-              borderLeft: `4px solid ${COLORS.warningOrange}`,
-            }}
-          >
-            <div style={{ fontSize: '12px', color: COLORS.textLight }}>
-              Duplicates Skipped
-            </div>
-            <div
-              style={{
-                fontSize: '28px',
-                fontWeight: '700',
-                color: COLORS.warningOrange,
-                marginTop: '4px',
-              }}
-            >
+          <div style={{ padding: '16px', backgroundColor: '#fff5e6', borderRadius: '4px', borderLeft: `4px solid ${COLORS.warningOrange}` }}>
+            <div style={{ fontSize: '12px', color: COLORS.textLight }}>Duplicates Skipped</div>
+            <div style={{ fontSize: '28px', fontWeight: '700', color: COLORS.warningOrange, marginTop: '4px' }}>
               {duplicateCount}
             </div>
           </div>
-
-          <div
-            style={{
-              padding: '16px',
-              backgroundColor: '#f0f0f0',
-              borderRadius: '4px',
-              borderLeft: `4px solid ${COLORS.navy}`,
-            }}
-          >
-            <div style={{ fontSize: '12px', color: COLORS.textLight }}>
-              Ready to Import
-            </div>
-            <div
-              style={{
-                fontSize: '28px',
-                fontWeight: '700',
-                color: COLORS.navy,
-                marginTop: '4px',
-              }}
-            >
+          <div style={{ padding: '16px', backgroundColor: '#f0f0f0', borderRadius: '4px', borderLeft: `4px solid ${COLORS.navy}` }}>
+            <div style={{ fontSize: '12px', color: COLORS.textLight }}>Ready to Import</div>
+            <div style={{ fontSize: '28px', fontWeight: '700', color: COLORS.navy, marginTop: '4px' }}>
               {importSummary?.forImport || 0}
             </div>
           </div>
         </div>
 
         {importSummary?.dateRange?.from && importSummary?.dateRange?.to && (
-          <div
-            style={{
-              padding: '16px',
-              backgroundColor: COLORS.lightGray,
-              borderRadius: '4px',
-              marginBottom: '24px',
-            }}
-          >
-            <p
-              style={{
-                margin: '0 0 8px 0',
-                fontWeight: '500',
-                color: COLORS.textDark,
-              }}
-            >
-              Date Range:
-            </p>
+          <div style={{ padding: '16px', backgroundColor: COLORS.lightGray, borderRadius: '4px', marginBottom: '24px' }}>
+            <p style={{ margin: '0 0 8px 0', fontWeight: '500', color: COLORS.textDark }}>Date Range:</p>
             <p style={{ margin: '0', color: COLORS.textLight }}>
-              {importSummary.dateRange.from.toLocaleDateString()} to{' '}
-              {importSummary.dateRange.to.toLocaleDateString()}
+              {importSummary.dateRange.from.toLocaleDateString()} to {importSummary.dateRange.to.toLocaleDateString()}
             </p>
           </div>
         )}
 
-        <div
-          style={{
-            padding: '16px',
-            backgroundColor: '#e6f3ff',
-            borderRadius: '4px',
-            borderLeft: `4px solid ${COLORS.accentBlue}`,
-            marginBottom: '24px',
-          }}
-        >
-          <p
-            style={{
-              margin: '0',
-              fontSize: '14px',
-              color: COLORS.accentBlue,
-              fontWeight: '500',
-            }}
-          >
-            Account: {accountType === 'checking' ? 'BOA Checking' : 'BOA Credit Card'}
+        <div style={{
+          padding: '16px', backgroundColor: '#e6f3ff', borderRadius: '4px',
+          borderLeft: `4px solid ${COLORS.accentBlue}`, marginBottom: '24px',
+        }}>
+          <p style={{ margin: '0', fontSize: '14px', color: COLORS.accentBlue, fontWeight: '500' }}>
+            Account: {selectedAccount?.name || '—'}
           </p>
-          <p
-            style={{
-              margin: '4px 0 0 0',
-              fontSize: '13px',
-              color: COLORS.textLight,
-            }}
-          >
+          <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: COLORS.textLight }}>
             File: {fileData?.name}
           </p>
         </div>
 
-        <div
-          style={{
-            display: 'flex',
-            gap: '12px',
-            justifyContent: 'flex-end',
-          }}
-        >
-          <button
-            onClick={() => setStep('preview')}
-            style={{
-              padding: '10px 24px',
-              backgroundColor: COLORS.lightGray,
-              border: `1px solid ${COLORS.borderGray}`,
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '14px',
-              fontWeight: '500',
-              color: COLORS.textDark,
-              transition: 'background 0.2s ease',
-            }}
-            onMouseEnter={(e) =>
-              (e.currentTarget.style.backgroundColor = '#e0e0e0')
-            }
-            onMouseLeave={(e) =>
-              (e.currentTarget.style.backgroundColor = COLORS.lightGray)
-            }
-          >
-            Back
-          </button>
-          <button
-            onClick={handleConfirmImport}
-            disabled={loadingMessage !== ''}
-            style={{
-              padding: '10px 24px',
-              backgroundColor:
-                loadingMessage !== '' ? '#ccc' : COLORS.successGreen,
-              color: '#fff',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: loadingMessage !== '' ? 'not-allowed' : 'pointer',
-              fontSize: '14px',
-              fontWeight: '500',
-              transition: 'background 0.2s ease',
-            }}
-            onMouseEnter={(e) => {
-              if (loadingMessage === '') {
-                e.currentTarget.style.backgroundColor = '#1f8a4a';
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (loadingMessage === '') {
-                e.currentTarget.style.backgroundColor = COLORS.successGreen;
-              }
-            }}
-          >
-            {loadingMessage ? 'Importing...' : 'Confirm & Import'}
-          </button>
+        <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+          <button onClick={() => setStep('preview')} style={{
+            padding: '10px 24px', backgroundColor: COLORS.lightGray,
+            border: `1px solid ${COLORS.borderGray}`, borderRadius: '4px',
+            cursor: 'pointer', fontSize: '14px', fontWeight: '500', color: COLORS.textDark,
+          }}>Back</button>
+          <button onClick={handleConfirmImport} disabled={loadingMessage !== ''} style={{
+            padding: '10px 24px',
+            backgroundColor: loadingMessage !== '' ? '#ccc' : COLORS.successGreen,
+            color: '#fff', border: 'none', borderRadius: '4px',
+            cursor: loadingMessage !== '' ? 'not-allowed' : 'pointer',
+            fontSize: '14px', fontWeight: '500',
+          }}>{loadingMessage ? 'Importing...' : 'Confirm & Import'}</button>
         </div>
 
         {loadingMessage && (
-          <p
-            style={{
-              color: COLORS.accentBlue,
-              fontSize: '14px',
-              marginTop: '16px',
-              textAlign: 'center',
-            }}
-          >
+          <p style={{ color: COLORS.accentBlue, fontSize: '14px', marginTop: '16px', textAlign: 'center' }}>
             {loadingMessage}
           </p>
         )}
