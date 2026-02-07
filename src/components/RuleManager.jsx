@@ -330,13 +330,13 @@ export default function RuleManager({ store, saveData }) {
                         {isEditing ? (
                           <input
                             type="text"
-                            value={editingData.matchText}
+                            value={editingData.matchText || editingData.match}
                             onChange={(e) => setEditingData({ ...editingData, matchText: e.target.value })}
                             style={inputStyle}
                           />
                         ) : (
                           <code style={{ backgroundColor: '#f0f0f0', padding: '2px 6px', borderRadius: '3px', fontSize: '12px' }}>
-                            {rule.matchText}
+                            {rule.matchText || rule.match}
                           </code>
                         )}
                       </td>
@@ -374,7 +374,7 @@ export default function RuleManager({ store, saveData }) {
                       <td style={cellStyle}>
                         {isEditing ? (
                           <select
-                            value={editingData.matchType}
+                            value={editingData.matchType || editingData.match_type}
                             onChange={(e) => setEditingData({ ...editingData, matchType: e.target.value })}
                             style={selectStyle}
                           >
@@ -383,7 +383,7 @@ export default function RuleManager({ store, saveData }) {
                             <option value="starts">Starts With</option>
                           </select>
                         ) : (
-                          rule.matchType
+                          rule.matchType || rule.match_type
                         )}
                       </td>
                       <td style={{ ...cellStyle, textAlign: 'center' }}>
