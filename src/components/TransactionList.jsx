@@ -7,7 +7,7 @@ export default function TransactionList({ store, saveData }) {
   const [searchText, setSearchText] = useState('');
   const [filterType, setFilterType] = useState('All');
   const [filterCategory, setFilterCategory] = useState('All');
-  const [filterSource, setFilterSource] = useState('All');
+  const [filterAccountId, setFilterAccountId] = useState('All');
   const [filterStatus, setFilterStatus] = useState('All');
   const [sortBy, setSortBy] = useState('date');
   const [sortOrder, setSortOrder] = useState('desc');
@@ -39,8 +39,8 @@ export default function TransactionList({ store, saveData }) {
       if (filterCategory !== 'All' && t.category !== filterCategory) {
         return false;
       }
-      // Source filter
-      if (filterSource !== 'All' && t.source !== filterSource) {
+      // Account filter
+      if (filterAccountId !== 'All' && t.account_id !== filterAccountId) {
         return false;
       }
       // Status filter
@@ -77,7 +77,7 @@ export default function TransactionList({ store, saveData }) {
     });
 
     return result;
-  }, [store.transactions, searchText, filterType, filterCategory, filterSource, filterStatus, sortBy, sortOrder]);
+  }, [store.transactions, searchText, filterType, filterCategory, filterAccountId, filterStatus, sortBy, sortOrder]);
 
   // Pagination
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
@@ -114,16 +114,15 @@ export default function TransactionList({ store, saveData }) {
     const updated = store.transactions.map(t =>
       t.id === editingId ? editingData : t
     );
-    store.transactions = updated;
-    saveData();
+    saveData({ transactions: updated });
     setEditingId(null);
     setEditingData({});
   };
 
   // Handler: Delete transaction
   const handleDelete = (id) => {
-    store.transactions = store.transactions.filter(t => t.id !== id);
-    saveData();
+    const updated = store.transactions.filter(t => t.id !== id);
+    saveData({ transactions: updated });
     setDeleteConfirmId(null);
   };
 
@@ -232,16 +231,19 @@ export default function TransactionList({ store, saveData }) {
           </select>
 
           <select
-            value={filterSource}
+            value={filterAccountId}
             onChange={(e) => {
-              setFilterSource(e.target.value);
+              setFilterAccountId(e.target.value);
               setCurrentPage(1);
             }}
             style={selectStyle}
           >
-            <option value="All">All Sources</option>
-            <option value="Checking">Checking</option>
-            <option value="Credit Card">Credit Card</option>
+            <option value="All">All Accounts</option>
+            {(store.accounts || []).map(acct => (
+              <option key={acct.id} value={acct.id}>
+                {acct.name} ({acct.type === 'credit_card' ? 'Credit Card' : acct.type === 'checking' ? 'Checking' : 'Savings'})
+              </option>
+            ))}
           </select>
 
           <select
@@ -279,7 +281,7 @@ export default function TransactionList({ store, saveData }) {
               </th>
               <th style={headerCellStyle}>Type</th>
               <th style={headerCellStyle}>Category</th>
-              <th style={headerCellStyle}>Source</th>
+              <th style={headerCellStyle}>Account</th>
               <th style={headerCellStyle}>Status</th>
               <th style={headerCellStyle}>Actions</th>
             </tr>
@@ -369,7 +371,12 @@ export default function TransactionList({ store, saveData }) {
                       transaction.category || '-'
                     )}
                   </td>
-                  <td style={cellStyle}>{transaction.source || '-'}</td>
+                  <td style={cellStyle}>
+                    {(() => {
+                      const acct = (store.accounts || []).find(a => a.id === transaction.account_id);
+                      return acct ? acct.name : (transaction.source_account || '-');
+                    })()}
+                  </td>
                   <td style={cellStyle}>
                     <div style={{
                       display: 'inline-flex',
